@@ -1,5 +1,7 @@
 # Kubernetes Cost Optimization Report
 
+---
+
 ## Stage 1 — Baseline Waste Analysis
 
 ### Environment
@@ -255,36 +257,146 @@ The application resource requests were reduced by 80% for both CPU and memory wi
 
 The bin-packing experiment demonstrated that the application could not safely be consolidated onto one worker node under the current EKS system-workload and capacity constraints.
 
-The optimized resource configuration establishes the foundation for the next stage: workload and node autoscaling.
+The optimized resource configuration establishes the foundation for workload and node autoscaling.
 
 ---
 
-## Stage 3 — Autoscaling
+## Stage 3 — Pod and Node Autoscaling
 
-**Status: Planned**
+**Status: Complete**
 
-Stage 3 will introduce workload and infrastructure autoscaling.
+### Objective
 
-Planned components:
+Introduce automatic workload and node scaling so that application capacity increases during demand and unnecessary worker capacity is removed during low-demand periods.
+
+Stage 3 implemented:
 
 - Horizontal Pod Autoscaler (HPA)
-- Vertical Pod Autoscaler (VPA) evaluation
-- Karpenter for dynamic node provisioning and scale-down
+- VPA evaluation/recommendation approach
+- Cluster Autoscaler for worker-node scaling
 
-The stage will demonstrate application scale-out and scale-in based on demand and evaluate whether worker-node capacity can dynamically adjust to workload requirements.
+### HPA Configuration
 
----
+The application was configured with an HPA using the Kubernetes `autoscaling/v2` API.
 
-## Stage 4 — Spot Capacity
+Configuration:
 
-**Status: Planned**
+| Setting | Value |
+|---|---:|
+| Target Deployment | cost-baseline-app |
+| Minimum replicas | 2 |
+| Maximum replicas | 6 |
+| CPU target | 60% |
+| Scale-up stabilization | 0 seconds |
+| Scale-down stabilization | 60 seconds |
 
+The HPA was configured to scale the application based on CPU utilization relative to the right-sized CPU requests.
+
+### HPA Scale-Out Evidence
+
+A controlled load test was used to increase application CPU demand.
+
+The HPA successfully increased application capacity:
+
+**3 replicas → 5 replicas**
+
+Observed HPA output included:
+
+```text
+NAME                REFERENCE                      TARGETS        MINPODS   MAXPODS   REPLICAS
+cost-baseline-hpa   Deployment/cost-baseline-app   cpu: 52%/60%   2         6         5
+The workload therefore demonstrated automatic pod scale-out when demand increased.
+HPA Scale-In Evidence
+During the lower-demand phase, the HPA reduced application replicas.
+An earlier controlled observation showed:
+cpu: 54%/60%   REPLICAS: 3
+
+The workload therefore demonstrated both HPA scale-out and scale-in behavior rather than remaining permanently at peak replica capacity.
+VPA Evaluation
+Vertical Pod Autoscaler was evaluated as part of the autoscaling design.
+The EKS cluster did not have the VPA CustomResourceDefinition installed, so VPA was not enabled as an automatic controller.
+For this project, VPA is treated as a recommendation-based future optimization mechanism rather than an automatic scaling mechanism.
+Recommended operating model:
+- Use VPA in recommendation/Off mode to analyze historical resource usage.
+- Review recommendations before applying new requests and limits.
+- Avoid automatically changing requests while HPA is simultaneously using CPU utilization based on those requests.
+- Apply validated recommendations through controlled deployment changes.
+This approach avoids introducing competing automatic resource adjustments between HPA and VPA.
+Cluster Autoscaler
+Cluster Autoscaler was selected instead of Karpenter for the node-autoscaling implementation.
+The EKS managed node group was configured with:
+- Node group: baseline-workers
+- Initial desired nodes: 2
+- Minimum nodes: 2
+- Maximum nodes: 4
+- Instance type: t3.small
+- Capacity type: On-Demand
+Cluster Autoscaler was installed using Helm with AWS autodiscovery for the eks-cost-optimization cluster.
+An IAM OIDC provider and dedicated IAM service account were configured to allow Cluster Autoscaler to interact with the AWS Auto Scaling API.
+Cluster Autoscaler Scale-Out Evidence
+Under increased workload and scheduling pressure, the worker-node count increased automatically.
+Observed node state changed from:
+2 nodes → 3 nodes
+The third EKS worker node successfully joined the cluster and reached Ready status.
+Example observed state:
+NAME                                            STATUS
+ip-192-168-28-222.ap-south-1.compute.internal   Ready
+ip-192-168-53-200.ap-south-1.compute.internal   Ready
+<new worker node>                               Ready
+
+This demonstrates that Cluster Autoscaler successfully provisioned additional worker capacity when the existing capacity was insufficient.
+Cluster Autoscaler Scale-In Evidence
+After the controlled load was removed and the application workload was returned to the lower-demand state, the additional worker capacity was no longer required.
+The cluster automatically returned to:
+3 nodes → 2 nodes
+Observed final node state:
+NAME                                            STATUS
+ip-192-168-28-222.ap-south-1.compute.internal   Ready
+ip-192-168-53-200.ap-south-1.compute.internal   Ready
+
+This demonstrates automatic node scale-down during reduced demand.
+Autoscaling Behavior Summary
+Optimization	Scale-Out	Scale-In	Result
+HPA	3 → 5 pods	4 → 3 pods	Complete
+Cluster Autoscaler	2 → 3 nodes	3 → 2 nodes	Complete
+VPA	Recommendation approach	Not automatic	Evaluated
+
+
+The cluster therefore demonstrated the intended pattern:
+Off-peak: fewer replicas and 2 worker nodes
+Peak: more application replicas and 3 worker nodes
+Reliability During Autoscaling
+The autoscaling tests were performed using the controlled NGINX workload.
+Observed reliability characteristics during the implemented stages included:
+- Application pods remained schedulable.
+- HPA successfully created additional replicas.
+- Additional worker capacity joined the cluster successfully.
+- Worker nodes reached Ready status.
+- Node capacity was removed after the workload decreased.
+- No OOMKills were observed during the right-sizing validation.
+- No application restart issue was observed during the controlled autoscaling workflow.
+The benchmark was controlled and does not represent production traffic or a production availability guarantee.
+Cost Optimization Impact
+The combination of right-sizing and autoscaling improves cost efficiency in two separate ways.
+Right-sizing reduces the amount of CPU and memory capacity reserved by each application pod. This gives the Kubernetes scheduler more flexibility to place workloads efficiently.
+HPA prevents the application from permanently running peak replica counts when demand is low.
+Cluster Autoscaler prevents the cluster from permanently running peak worker capacity when workloads do not require it.
+Together:
+Right-sizing → better bin-packing → less reserved capacity
+HPA → fewer pods during low demand
+Cluster Autoscaler → fewer worker nodes during low demand
+This reduces infrastructure waste while retaining the ability to scale when demand increases.
+Stage 3 Conclusion
+Stage 3 successfully implemented and demonstrated pod and node autoscaling.
+The HPA scaled the application from 3 to 5 replicas during increased demand and demonstrated scale-in during reduced demand.
+Cluster Autoscaler scaled worker capacity from 2 to 3 nodes during increased scheduling pressure and subsequently reduced the cluster from 3 to 2 nodes when the additional capacity was no longer required.
+VPA was evaluated and intentionally not enabled in automatic update mode because the project already uses HPA and resource-request-based CPU scaling.
+Stage 3 therefore establishes automatic demand-based scaling while maintaining the right-sized resource configuration from Stage 2.
+Stage 4 — Spot Capacity
+Status: Planned
 Suitable workloads will be evaluated for Amazon EC2 Spot capacity.
-
 Critical workloads will retain appropriate On-Demand capacity.
-
 The implementation will evaluate:
-
 - Spot node provisioning
 - Workload scheduling
 - Interruption handling
@@ -292,17 +404,10 @@ The implementation will evaluate:
 - Pod rescheduling
 - Reliability during interruption
 - Cost savings compared with On-Demand capacity
-
----
-
-## Stage 5 — Cost and Reliability Measurement
-
-**Status: Planned**
-
+Stage 5 — Cost and Reliability Measurement
+Status: Planned
 The final stage will compare the baseline and optimized environments.
-
 The final report will include:
-
 - Node count
 - CPU requests
 - Memory requests
@@ -316,17 +421,10 @@ The final report will include:
 - OOMKills
 - Cost visibility by namespace/workload
 - Cost/regression monitoring
-
 Exact AWS billing data will be captured under controlled benchmark conditions rather than estimated from assumptions.
-
----
-
-## Final Reliability Principle
-
+Final Reliability Principle
 Cost optimization will only be considered successful when resource efficiency improves without introducing unacceptable workload instability.
-
 All optimization stages will therefore consider:
-
 - Resource utilization
 - Scheduling efficiency
 - Pod availability
