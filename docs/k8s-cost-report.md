@@ -113,6 +113,8 @@ The benchmark started with:
 
 Exact AWS billing cost will be captured separately using the AWS billing/cost data under controlled benchmark conditions rather than estimated from assumptions.
 
+---
+
 ## Stage 2 — Right-Sizing
 
 **Status: Complete**
@@ -192,23 +194,42 @@ The workload maintained:
 - Successful deployment rollout
 - Stable node availability
 
-### Bin-Packing Impact
+### Bin-Packing Experiment
 
-The reduction in application requests improves the scheduler's ability to place workloads efficiently.
+After right-sizing, the application resource requests were sufficiently reduced to investigate whether the four application replicas could be concentrated onto a single worker node.
 
-Before right-sizing:
+The two worker nodes had approximately:
 
-- 4 pods requested 1000m CPU and 1024Mi memory.
+- Allocatable CPU: 1930m per node
+- Allocatable memory: approximately 1468Mi per node
 
-After right-sizing:
+The application itself requested only:
 
-- 4 pods requested 200m CPU and 128Mi memory.
+- CPU: 200m total
+- Memory: 128Mi total
 
-The lower requests reduce the amount of reserved capacity required by the application and create more schedulable headroom on the existing worker nodes.
+A controlled scheduling test was performed by temporarily constraining the application workload to one worker node.
 
-The cluster still contained two worker nodes after this stage. Therefore, a direct reduction in node count has not yet been claimed as a result of right-sizing alone.
+### Bin-Packing Result
 
-A later optimization stage will evaluate dynamic node provisioning and scale-down behavior to determine whether the additional capacity created by right-sizing can translate into fewer active worker nodes.
+The single-node placement test was **not feasible under the current EKS configuration**.
+
+When the deployment was constrained to one worker node:
+
+- Existing replicas remained on their original nodes during the rolling update.
+- Two replacement replicas became Pending.
+- The constrained node could not accommodate the complete replacement workload together with the existing Kubernetes system workloads and scheduling requirements.
+- The deployment exceeded its progress deadline.
+
+The scheduling constraint was subsequently removed and the deployment was successfully restored to its normal configuration.
+
+### Bin-Packing Conclusion
+
+The test demonstrates that right-sizing improved the application's resource-request efficiency, but the current two-node EKS configuration cannot safely be reduced to one worker node based on this experiment alone.
+
+Therefore, the project does **not** claim a node-count reduction during Stage 2.
+
+Instead, the result establishes an infrastructure constraint that will be addressed through dynamic node autoscaling in the later optimization stage.
 
 ### Right-Sizing Risks
 
@@ -232,7 +253,11 @@ Stage 2 successfully reduced unnecessary Kubernetes resource reservations while 
 
 The application resource requests were reduced by 80% for both CPU and memory without observed OOMKills or pod restarts.
 
+The bin-packing experiment demonstrated that the application could not safely be consolidated onto one worker node under the current EKS system-workload and capacity constraints.
+
 The optimized resource configuration establishes the foundation for the next stage: workload and node autoscaling.
+
+---
 
 ## Stage 3 — Autoscaling
 
@@ -247,6 +272,8 @@ Planned components:
 - Karpenter for dynamic node provisioning and scale-down
 
 The stage will demonstrate application scale-out and scale-in based on demand and evaluate whether worker-node capacity can dynamically adjust to workload requirements.
+
+---
 
 ## Stage 4 — Spot Capacity
 
@@ -265,6 +292,8 @@ The implementation will evaluate:
 - Pod rescheduling
 - Reliability during interruption
 - Cost savings compared with On-Demand capacity
+
+---
 
 ## Stage 5 — Cost and Reliability Measurement
 
@@ -289,6 +318,8 @@ The final report will include:
 - Cost/regression monitoring
 
 Exact AWS billing data will be captured under controlled benchmark conditions rather than estimated from assumptions.
+
+---
 
 ## Final Reliability Principle
 
