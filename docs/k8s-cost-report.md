@@ -115,4 +115,192 @@ Exact AWS billing cost will be captured separately using the AWS billing/cost da
 
 ## Stage 2 — Right-Sizing
 
-Status: Pending
+**Status: Complete**
+
+### Objective
+
+Reduce unnecessary CPU and memory resource reservations based on the measured behavior of the controlled workload while maintaining application reliability.
+
+### Measured Workload
+
+Additional controlled measurements were collected before applying the new resource configuration.
+
+The four application pods showed approximately:
+
+- CPU: 12–22m per pod across repeated samples
+- Combined CPU: approximately 65–81m
+- Memory: approximately 3Mi per pod
+- Combined memory: approximately 12Mi
+
+These measurements were used to determine a smaller resource allocation with safety headroom for the controlled NGINX benchmark.
+
+### Right-Sized Resource Configuration
+
+The application resource configuration was changed from:
+
+| Resource | Baseline | Right-Sized |
+|---|---:|---:|
+| CPU Request | 250m | 50m |
+| Memory Request | 256Mi | 32Mi |
+| CPU Limit | 500m | 200m |
+| Memory Limit | 512Mi | 64Mi |
+
+For 4 replicas, the total requested resources changed from:
+
+| Resource | Baseline | Right-Sized |
+|---|---:|---:|
+| CPU Request | 1000m | 200m |
+| Memory Request | 1024Mi | 128Mi |
+
+This represents an 80% reduction in both CPU and memory resource requests for the application workload.
+
+> Important: The 80% reduction applies to Kubernetes resource requests for the application pods. It does not represent an 80% reduction in AWS infrastructure cost because the cluster continued to run two worker nodes during this stage.
+
+### Deployment
+
+The right-sized workload was applied using the updated Kubernetes deployment manifest.
+
+The deployment continued running four application replicas.
+
+The rollout completed successfully without deployment availability issues.
+
+### Sustained-Load Validation
+
+The right-sized workload was validated using the controlled load-generator workload.
+
+Observed results included:
+
+- Application replicas: 4/4 available
+- Application pod status: Running
+- Application pod restarts: 0
+- OOMKills observed: 0
+- Combined application CPU usage: approximately 65–81m during sampled load
+- Combined application memory usage: approximately 12Mi
+- Worker nodes remained available and schedulable
+
+The validation indicates that the reduced resource requests and limits were sufficient for the controlled NGINX benchmark.
+
+### Reliability Result
+
+The right-sizing change did not introduce observed workload instability during the controlled test.
+
+The workload maintained:
+
+- 4/4 application replicas
+- 0 pod restarts
+- No observed OOMKills
+- Successful deployment rollout
+- Stable node availability
+
+### Bin-Packing Impact
+
+The reduction in application requests improves the scheduler's ability to place workloads efficiently.
+
+Before right-sizing:
+
+- 4 pods requested 1000m CPU and 1024Mi memory.
+
+After right-sizing:
+
+- 4 pods requested 200m CPU and 128Mi memory.
+
+The lower requests reduce the amount of reserved capacity required by the application and create more schedulable headroom on the existing worker nodes.
+
+The cluster still contained two worker nodes after this stage. Therefore, a direct reduction in node count has not yet been claimed as a result of right-sizing alone.
+
+A later optimization stage will evaluate dynamic node provisioning and scale-down behavior to determine whether the additional capacity created by right-sizing can translate into fewer active worker nodes.
+
+### Right-Sizing Risks
+
+The selected values are based on the controlled NGINX benchmark and should not automatically be applied to an unrelated production workload.
+
+Potential risks include:
+
+- Higher-than-observed production traffic
+- CPU bursts above the measured workload
+- Memory growth over time
+- Increased concurrency
+- Different application behavior
+- OOMKills if memory limits are too low
+- CPU throttling if CPU limits are too restrictive
+
+For production workloads, resource recommendations should be based on representative historical usage and monitored over an appropriate period.
+
+### Stage 2 Conclusion
+
+Stage 2 successfully reduced unnecessary Kubernetes resource reservations while maintaining workload reliability during the controlled benchmark.
+
+The application resource requests were reduced by 80% for both CPU and memory without observed OOMKills or pod restarts.
+
+The optimized resource configuration establishes the foundation for the next stage: workload and node autoscaling.
+
+## Stage 3 — Autoscaling
+
+**Status: Planned**
+
+Stage 3 will introduce workload and infrastructure autoscaling.
+
+Planned components:
+
+- Horizontal Pod Autoscaler (HPA)
+- Vertical Pod Autoscaler (VPA) evaluation
+- Karpenter for dynamic node provisioning and scale-down
+
+The stage will demonstrate application scale-out and scale-in based on demand and evaluate whether worker-node capacity can dynamically adjust to workload requirements.
+
+## Stage 4 — Spot Capacity
+
+**Status: Planned**
+
+Suitable workloads will be evaluated for Amazon EC2 Spot capacity.
+
+Critical workloads will retain appropriate On-Demand capacity.
+
+The implementation will evaluate:
+
+- Spot node provisioning
+- Workload scheduling
+- Interruption handling
+- Node drain behavior
+- Pod rescheduling
+- Reliability during interruption
+- Cost savings compared with On-Demand capacity
+
+## Stage 5 — Cost and Reliability Measurement
+
+**Status: Planned**
+
+The final stage will compare the baseline and optimized environments.
+
+The final report will include:
+
+- Node count
+- CPU requests
+- Memory requests
+- CPU utilization
+- Memory utilization
+- Application replicas
+- Infrastructure cost
+- Estimated savings
+- Pod availability
+- Pod restarts
+- OOMKills
+- Cost visibility by namespace/workload
+- Cost/regression monitoring
+
+Exact AWS billing data will be captured under controlled benchmark conditions rather than estimated from assumptions.
+
+## Final Reliability Principle
+
+Cost optimization will only be considered successful when resource efficiency improves without introducing unacceptable workload instability.
+
+All optimization stages will therefore consider:
+
+- Resource utilization
+- Scheduling efficiency
+- Pod availability
+- Pod restarts
+- OOMKills
+- Application behavior
+- Node availability
+- Autoscaling behavior
