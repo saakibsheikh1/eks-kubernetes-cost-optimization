@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cost-baseline-app
+  namespace: cost-baseline
+  labels:
+    app: cost-baseline
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: cost-baseline
+  template:
+    metadata:
+      labels:
+        app: cost-baseline
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.27-alpine
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "32Mi"
+            limits:
+              cpu: "200m"
+              memory: "64Mi"
+          ports:
+            - containerPort: 80
