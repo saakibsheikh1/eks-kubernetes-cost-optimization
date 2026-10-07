@@ -1,17 +1,27 @@
-Kubernetes Cost Optimization on Amazon EKS
-A practical Kubernetes cost optimization project on Amazon EKS focused on resource right-sizing, bin-packing, horizontal pod autoscaling, node autoscaling, cost visibility, regression detection, and Spot capacity while maintaining workload reliability.
-Project Status
-Stage	Area	Status
-Stage 1	Baseline Waste Measurement	✅ Complete
-Stage 2	Right-Sizing & Bin-Packing	✅ Complete
-Stage 3	Autoscaling	✅ Complete
-Stage 4	Spot Optimization	✅ Complete
-Stage 5	Cost Measurement & Reporting	✅ Complete
+# Kubernetes Cost Optimization on Amazon EKS
 
+A practical Kubernetes cost optimization project on Amazon EKS focused on **resource right-sizing, bin-packing, horizontal pod autoscaling, node autoscaling, cost visibility, regression detection, and Spot capacity** while maintaining workload reliability.
 
-Objective
+---
+
+## Project Status
+
+| Stage | Area | Status |
+|---|---|---|
+| Stage 1 | Baseline Waste Measurement | ✅ Complete |
+| Stage 2 | Right-Sizing & Bin-Packing | ✅ Complete |
+| Stage 3 | Autoscaling | ✅ Complete |
+| Stage 4 | Spot Optimization | ✅ Complete |
+| Stage 5 | Cost Measurement & Reporting | ✅ Complete |
+
+---
+
+## Objective
+
 The objective of this project was to identify and reduce unnecessary Kubernetes infrastructure cost while maintaining application reliability and workload availability.
+
 The project evaluates:
+
 - CPU and memory request/limit optimization
 - Kubernetes bin-packing
 - Horizontal Pod Autoscaling (HPA)
@@ -23,8 +33,14 @@ The project evaluates:
 - Namespace/workload cost visibility
 - Cost regression detection
 - Before/after infrastructure cost comparison
+
 The implementation was performed on a personal Amazon EKS test environment using controlled workloads.
-Architecture
+
+---
+
+# Architecture
+
+```text
                              Amazon EKS
                                   |
                  +----------------+----------------+
@@ -104,6 +120,7 @@ eks-kubernetes-cost-optimization/
     ├── runbook.md
     ├── cost-regression-check.ps1
     └── screenshots/
+
 Stage 1 — Baseline Waste Measurement
 Status
 ✅ Complete
@@ -126,6 +143,7 @@ requests:
 limits:
   cpu: 500m
   memory: 512Mi
+
 The workload was intentionally configured with relatively high resource requests to demonstrate the effect of over-requesting.
 Baseline Measurements
 During controlled load testing, the four application pods showed approximately:
@@ -134,12 +152,14 @@ CPU usage:
 
 Memory usage:
 ~12Mi total across 4 application pods
+
 Original requested capacity:
 CPU:
 4 × 250m = 1000m
 
 Memory:
 4 × 256Mi = 1024Mi
+
 This demonstrated significant unused requested capacity.
 Node Utilization
 During the baseline load test:
@@ -150,6 +170,7 @@ Memory ~55%
 Node 2:
 CPU    ~11%
 Memory ~54%
+
 The cluster initially used two t3.small On-Demand worker nodes.
 Scaling Baseline
 At the beginning of the project:
@@ -161,12 +182,14 @@ Spot:                Not configured
 
 Worker nodes:
 2 fixed On-Demand nodes
+
 Reliability Baseline
 The baseline workload maintained:
 4/4 replicas available
 0 observed application restarts
 No OOMKills
 System pods healthy
+
 Stage 1 Conclusion
 The baseline demonstrated that the workload was requesting substantially more CPU and memory than it actually consumed.
 This provided the basis for resource right-sizing and improved bin-packing.
@@ -183,8 +206,10 @@ requests:
 limits:
   cpu: 200m
   memory: 64Mi
+
 The deployment remained at:
 4 replicas
+
 Before vs After
 Resource	Before	After
 CPU request / pod	250m	50m
@@ -198,12 +223,14 @@ Total memory request	1024Mi	128Mi
 Request footprint reduction:
 CPU request:     80%
 Memory request:  87.5%
+
 Reliability After Right-Sizing
 After applying the new resources:
 4/4 replicas available
 0 observed restarts
 No OOMKills
 All application pods Running
+
 The workload remained stable under the controlled benchmark.
 Bin-Packing Experiment
 A controlled scheduling experiment was performed to evaluate whether all application replicas could be concentrated onto one worker node.
@@ -236,14 +263,17 @@ Configuration:
 Minimum replicas: 2
 Maximum replicas: 6
 CPU target:       60%
+
 The HPA uses CPU utilization to automatically adjust application replica count.
 HPA Scale-Out
 During increased workload demand:
 3 replicas → 5 replicas
+
 This demonstrated automatic pod scale-out when CPU utilization increased.
 HPA Scale-In
 After additional workload was removed:
 4 replicas → 3 replicas
+
 This demonstrated HPA scale-in behavior.
 VPA Evaluation
 Vertical Pod Autoscaler was evaluated as part of the project.
@@ -254,6 +284,7 @@ Recommendation/evaluation only
 
 Automatic mutation:
 Disabled
+
 This avoids unnecessary interaction between VPA and HPA.
 VPA can be useful for long-term resource recommendations and right-sizing, while HPA is used for horizontal scaling based on workload demand.
 Cluster Autoscaler
@@ -273,16 +304,19 @@ Minimum:
 
 Maximum:
 4 nodes
+
 Cluster Autoscaler was installed using Helm with AWS IAM integration.
 The required IAM policy and IAM service account were created for Auto Scaling and EC2 capacity management.
 Node Scale-Out
 Additional workload was introduced to create scheduling pressure.
 Observed transition:
 2 nodes → 3 nodes
+
 This demonstrated automatic node scale-out when additional capacity was required.
 Node Scale-In
 After the additional workload was removed and application replicas were reduced:
 3 nodes → 2 nodes
+
 This demonstrated automatic node scale-in when additional capacity was no longer required.
 Autoscaling Cost Impact
 Cluster Autoscaler prevents the cluster from permanently maintaining peak capacity.
@@ -297,6 +331,7 @@ Additional nodes
 Demand decreases
      ↓
 Unused nodes removed
+
 This improves infrastructure utilization and reduces unnecessary worker-node cost during periods of lower demand.
 Stage 4 — Spot Optimization
 Status
@@ -322,6 +357,7 @@ Minimum:
 
 Maximum:
 2
+
 The actual Spot node used during testing was t3a.small.
 On-Demand Baseline
 The existing baseline-workers node group remained On-Demand.
@@ -340,6 +376,7 @@ On-Demand
 Spot
     |
     +-- Interruption-tolerant workloads
+
 Spot Workload
 A dedicated demonstration workload was created:
 Namespace:
@@ -350,8 +387,10 @@ spot-demo-app
 
 Replicas:
 2
+
 The deployment uses preferred node affinity for:
 eks.amazonaws.com/capacityType=SPOT
+
 This allows the workload to prefer Spot capacity while remaining schedulable on On-Demand capacity when required.
 Spot Resource Configuration
 The Spot workload uses the right-sized resources:
@@ -362,12 +401,14 @@ requests:
 limits:
   cpu: 200m
   memory: 64Mi
+
 This combines:
 Right-sizing
       +
 Spot capacity
       =
 Lower capacity cost with efficient resource usage
+
 Spot Interruption Handling
 AWS Node Termination Handler was installed with:
 - Spot interruption draining
@@ -387,6 +428,7 @@ Pods evicted
 Pods rescheduled
     ↓
 On-Demand nodes
+
 The two Spot workload replicas were automatically rescheduled onto available On-Demand nodes.
 Reliability result:
 spot-demo-app replica 1 → Running
@@ -397,12 +439,14 @@ Restarts:
 
 Final status:
 2/2 Running
+
 The test did not use an external continuous request probe, so this project does not claim a measured zero-second downtime window.
 Spot Cost Analysis
 Observed t3a.small Spot prices in ap-south-1 during testing included approximately:
 $0.0055/hour
 $0.0061/hour
 $0.0067/hour
+
 Spot pricing varies by:
 - Availability Zone
 - Instance type
@@ -416,6 +460,7 @@ $0.0224/hour
 
 t3a.small On-Demand:
 $0.0123/hour
+
 For an equivalent three-node peak capacity:
 Baseline:
 3 × t3.small On-Demand
@@ -425,12 +470,14 @@ Optimized:
 2 × t3.small On-Demand
 + 1 × t3a.small Spot
 = $0.0503/hour
+
 Observed saving at the latest captured Spot price:
 $0.0672 - $0.0503
 = $0.0169/hour
 
 Approximate saving:
 25.1%
+
 This is an equivalent-capacity Spot comparison, not a claim that the entire AWS account or cluster bill decreased by exactly 25.1%.
 Spot Workload Selection
 Suitable workloads include:
@@ -460,6 +507,7 @@ OpenCost was deployed for Kubernetes cost allocation.
 OpenCost was queried through its allocation API for:
 Namespace
 Workload
+
 This provided visibility into CPU and memory requests, usage, efficiency and estimated resource cost.
 Example namespace-level observation:
 cost-baseline:
@@ -468,32 +516,40 @@ CPU cost:    approximately $0.00053
 RAM request: approximately 128Mi
 RAM cost:    approximately $0.00004
 Total sample cost: approximately $0.00057
-The values are short controlled-window allocation samples and should not be interpreted as the complete AWS invoice.
+
+These values are short controlled-window allocation samples and should not be interpreted as the complete AWS invoice.
 Cost Regression Detection
 A PowerShell regression check was added:
 docs/cost-regression-check.ps1
+
 The check detects CPU request regression against the optimized baseline.
 Optimized value:
 50m CPU request per pod
+
 Regression threshold:
 75m CPU request per pod
+
 The script reports:
 PASS
 WARNING
 or
 ALERT
+
 depending on the current resource configuration.
 Deliberate Regression Test
 The optimized workload was deliberately changed:
 50m → 100m CPU request
+
 The regression script detected:
 ALERT: CPU request regression detected!
 
 Current request 100m exceeds threshold 75m.
 
 This can reduce bin-packing efficiency and increase node cost.
+
 The workload was then restored to the optimized:
 50m CPU request
+
 This demonstrated that the project can detect resource-request creep before it silently increases scheduling and capacity requirements.
 Final Cost and Efficiency Summary
 Resource Efficiency
@@ -512,6 +568,7 @@ CPU request:
 
 Memory request:
 87.5%
+
 These percentages describe Kubernetes requested-capacity reduction, not direct AWS billing reduction.
 Autoscaling Efficiency
 Demonstrated:
@@ -526,6 +583,7 @@ Cluster Autoscaler:
 
 Cluster Autoscaler:
 3 → 2 nodes after demand decreased
+
 This avoids maintaining peak application and node capacity continuously.
 Spot Capacity Efficiency
 At the latest captured Spot price:
@@ -541,6 +599,7 @@ $0.0169/hour
 
 Equivalent-capacity saving:
 ~25.1%
+
 The comparison isolates Spot capacity savings. It is not presented as a full AWS billing-period saving.
 Reliability Summary
 Test	Result
@@ -563,8 +622,10 @@ Key Findings
 1. Right-sizing reduces wasted requested capacity
 The application CPU request was reduced:
 250m → 50m per pod
+
 Memory request was reduced:
 256Mi → 32Mi per pod
+
 while maintaining reliability under the controlled benchmark.
 2. HPA matches application capacity to demand
 HPA automatically increased and decreased application replicas based on CPU utilization.
@@ -572,8 +633,10 @@ This prevents permanently running the maximum number of application replicas.
 3. Cluster Autoscaler matches worker capacity to scheduling demand
 Cluster Autoscaler demonstrated:
 2 → 3 nodes
+
 during increased demand and:
 3 → 2 nodes
+
 after demand decreased.
 4. Spot reduces compute cost for suitable workloads
 Spot capacity was used for an interruption-tolerant workload while critical baseline capacity remained On-Demand.
@@ -613,6 +676,7 @@ The project combines multiple optimization techniques instead of relying on a si
                             |
                             v
                     Lower compute cost
+
 Reliability Controls
 Cost optimization was performed without intentionally sacrificing workload reliability.
 Controls used:
@@ -635,7 +699,7 @@ Cluster Autoscaler	Adjust node count	✅ Implemented
 Karpenter	Provision right-sized nodes dynamically	📝 Compared, not implemented
 
 
-Project decision
+Project Decision
 HPA was used for application-level scaling.
 Cluster Autoscaler was used for node-level scaling because the project already used an EKS managed node group.
 VPA was kept as recommendation/evaluation only.
@@ -680,14 +744,19 @@ Optimize workload requests aggressively enough to improve density, but do not fo
 Evidence and Documentation
 Detailed implementation results:
 docs/k8s-cost-report.md
+
 Research and technology comparison:
 docs/research.md
+
 Operational troubleshooting and cost regression guidance:
 docs/runbook.md
+
 Cost regression check:
 docs/cost-regression-check.ps1
+
 Screenshots and supporting evidence:
 docs/screenshots/
+
 Cleanup
 The project uses a personal AWS test environment.
 After final review and evidence capture, temporary AWS resources should be removed to avoid unnecessary charges.
@@ -702,12 +771,13 @@ Resources to review before cleanup:
 - Prometheus
 - OpenCost
 - AWS Node Termination Handler
-- IAM policies/service accounts
+- AWS IAM policies/service accounts
 - Helm releases
 Example cluster cleanup:
 eksctl delete cluster `
   --name eks-cost-optimization `
   --region ap-south-1
+
 Only execute cleanup after all required screenshots, reports and evidence have been captured.
 Project Completion
 Stage 1  ✅ Complete
@@ -715,6 +785,7 @@ Stage 2  ✅ Complete
 Stage 3  ✅ Complete
 Stage 4  ✅ Complete
 Stage 5  ✅ Complete
+
 Final Outcome
 The project successfully demonstrated a complete Kubernetes cost optimization workflow:
 Baseline
@@ -740,6 +811,7 @@ Detect Cost Regression
 Compare Optimized Capacity
    ↓
 Produce Final Cost Report
+
 The final implementation reduced the controlled workload's requested CPU by 80% and memory by 87.5%, demonstrated dynamic pod and node scaling, introduced Spot capacity for suitable workloads, successfully handled a controlled Spot interruption, and implemented cost visibility and regression detection.
 The equivalent three-node peak-capacity comparison showed approximately 25.1% Spot capacity savings at the latest observed Spot price. This is intentionally presented as a capacity comparison rather than a claim about the total AWS billing account.
 Author
