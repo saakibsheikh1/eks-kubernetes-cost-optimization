@@ -80,7 +80,7 @@ The implementation was performed on a personal Amazon EKS test environment using
           Cost Regression Check
 
 
-#Environment
+Environment
 Component	Configuration
 Cloud	Amazon Web Services
 Kubernetes	Amazon EKS
